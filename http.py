@@ -6,7 +6,7 @@ import re
 import os
 import pprint
 
-socket.setdefaulttimeout = 0.50
+socket.setdefaulttimeout = 5
 
 CRLF = "\r\n\r\n"
 LOGIN_ENDPOINT = "http://fring.ccs.neu.edu/accounts/login/?next=/fakebook/"
@@ -15,8 +15,33 @@ PASSWORD = "HFE94HBL"
 
 csrf_token = None
 session_id = None
+visited_pages = {}
+pages_to_visit = []
+flags = []
 
 FAKEBOOK_HOST = "http://fring.ccs.neu.edu"
+
+""""""""""""""""""""""""""""HTMLParser"""""""""""""""""""""""""""""
+from HTMLParser import HTMLParser
+
+# create a subclass and override the handler methods
+class MyHTMLParser(HTMLParser):
+    def handle_starttag(self, tag, attrs):
+        for attr in attrs:
+            attributeType = attr[0]
+            attributeValue = attr[1]
+            if attributeType == 'href' and '/fakebook/' in attributeValue:
+                if attributeValue not in visited_pages:
+                    pages_to_visit.append(attributeValue)
+    def handle_data(self, data):
+        if "FLAG:" in data:
+            print '=========================================Found Flag==================================================='
+            print data[6:]
+            flags.append(data[6:])
+
+# instantiate the parser and fed it some HTML
+parser = MyHTMLParser()
+""""""""""""""""""""""""""""HTMLParser"""""""""""""""""""""""""""""
 
 def GET(url):
     url = urlparse.urlparse(url)
@@ -153,7 +178,39 @@ def login():
 
     homePage = GET(postLogin['Location'])
     pprint.pprint(homePage)
+
     return homePage
+
+def crawlNextPage():
+    global pages_to_visit
+    global visited_pages
+
+    nextPage = pages_to_visit.pop()
+    print "Visiting " + nextPage
+    htmlOfNextPage = GET(FAKEBOOK_HOST + nextPage)
+    if htmlOfNextPage['Status'] == str(200):
+        print "Success"
+        parser.feed(htmlOfNextPage['Body'])
+        visited_pages[nextPage] = True
+    else:
+        print "Status Code: " + str(htmlOfNextPage['Status'])
+        pages_to_visit.append(nextPage)
+
+def crawl():
+    global visited_pages
+
+    homePage = login()
+    visited_pages['/fakebook/'] = True #mark homepage as visited
+    parsed = parser.feed(homePage['Body'])
+
+    print visited_pages
+    print pages_to_visit
+
+    while len(visited_pages) > 0:
+        print len(pages_to_visit)
+        crawlNextPage()
+
+    print flags
 
 """
 GET /fakebook HTTP/1.1
@@ -170,4 +227,4 @@ username=000507282&password=HFE94HBL&csrfmiddlewaretoken=919ccc307b1a07a41e3c12e
 
 """
 
-login()
+crawl()
