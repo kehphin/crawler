@@ -16,8 +16,9 @@ PASSWORD = "HFE94HBL"
 csrf_token = None
 session_id = None
 visited_pages = {}
-pages_to_visit = []
+pages_to_visit = {}
 flags = []
+parent = '/fakebook'
 
 FAKEBOOK_HOST = "http://fring.ccs.neu.edu"
 
@@ -32,7 +33,8 @@ class MyHTMLParser(HTMLParser):
             attributeValue = attr[1]
             if attributeType == 'href' and '/fakebook/' in attributeValue:
                 if attributeValue not in visited_pages:
-                    pages_to_visit.append(attributeValue)
+                    pages_to_visit[attributeValue] = parent
+
     def handle_data(self, data):
         if "FLAG:" in data:
             print '=========================================Found Flag==================================================='
@@ -184,18 +186,25 @@ def login():
 def crawlNextPage():
     global pages_to_visit
     global visited_pages
+    global parent
 
-    nextPage = pages_to_visit.pop()
-    print "Visiting " + nextPage
+    nextPage = pages_to_visit.popitem()
+    childPage = nextPage[0]
+    parentPage = nextPage[1]
+
+    print "+++++++++++Visiting " + childPage + 'from ' + parentPage + '++++++++++++'
     try:
-        htmlOfNextPage = GET(FAKEBOOK_HOST + nextPage)
+        htmlOfNextPage = GET(FAKEBOOK_HOST + childPage)
+
         if htmlOfNextPage['Status'] == str(200):
             print "Success"
+            parent = childPage
             parser.feed(htmlOfNextPage['Body'])
-            visited_pages[nextPage] = True
+            visited_pages[childPage] = True
         elif htmlOfNextPage['Status'] != str(404):
             print "Status Code: " + str(htmlOfNextPage['Status'])
-            pages_to_visit.append(nextPage)
+            pages_to_visit[childPage] = parentPage
+
     except socket.timeout:
         print flags
 
@@ -212,8 +221,9 @@ def crawl():
 
     while len(visited_pages) > 0:
         print len(pages_to_visit)
+        print flags
         crawlNextPage()
-        
+
     print flags
 
 """
