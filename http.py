@@ -6,7 +6,7 @@ import re
 import os
 import pprint
 
-socket.setdefaulttimeout = 5
+socket.setdefaulttimeout = 30
 
 CRLF = "\r\n\r\n"
 LOGIN_ENDPOINT = "http://fring.ccs.neu.edu/accounts/login/?next=/fakebook/"
@@ -187,14 +187,18 @@ def crawlNextPage():
 
     nextPage = pages_to_visit.pop()
     print "Visiting " + nextPage
-    htmlOfNextPage = GET(FAKEBOOK_HOST + nextPage)
-    if htmlOfNextPage['Status'] == str(200):
-        print "Success"
-        parser.feed(htmlOfNextPage['Body'])
-        visited_pages[nextPage] = True
-    else:
-        print "Status Code: " + str(htmlOfNextPage['Status'])
-        pages_to_visit.append(nextPage)
+    try:
+        htmlOfNextPage = GET(FAKEBOOK_HOST + nextPage)
+        if htmlOfNextPage['Status'] == str(200):
+            print "Success"
+            parser.feed(htmlOfNextPage['Body'])
+            visited_pages[nextPage] = True
+        elif htmlOfNextPage['Status'] != str(404):
+            print "Status Code: " + str(htmlOfNextPage['Status'])
+            pages_to_visit.append(nextPage)
+    except socket.timeout:
+        print flags
+
 
 def crawl():
     global visited_pages
@@ -209,7 +213,7 @@ def crawl():
     while len(visited_pages) > 0:
         print len(pages_to_visit)
         crawlNextPage()
-
+        
     print flags
 
 """
