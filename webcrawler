@@ -2,19 +2,20 @@
 
 import socket
 import urlparse
-import re
-import os
-import pprint
+import sys
 
 socket.setdefaulttimeout = 30
 
 CRLF = "\r\n\r\n"
 LOGIN_ENDPOINT = "http://fring.ccs.neu.edu/accounts/login/?next=/fakebook/"
-USERNAME = "000507282"
-PASSWORD = "HFE94HBL"
+#USERNAME = "000507282"
+#PASSWORD = "HFE94HBL"
 
 #USERNAME = "001928461"
 #PASSWORD = "Z6RZF30F"
+
+USERNAME = sys.argv[1]
+PASSWORD = sys.argv[2]
 
 csrf_token = None
 session_id = None
@@ -43,14 +44,15 @@ class MyHTMLParser(HTMLParser):
         global flags 
 
         if "FLAG:" in data:
-            print '=========================================Found Flag==================================================='
-            print data[6:]
+            #print '=========================================Found Flag==================================================='
+            print data[6:] #strips off beginning of flag and adds it to our collection
             flags.append(data[6:])
 
 # instantiate the parser and fed it some HTML
 parser = MyHTMLParser()
 """"""""""""""""""""""""""""HTMLParser"""""""""""""""""""""""""""""
 
+#Http get request
 def GET(url):
     url = urlparse.urlparse(url)
     path = url.path
@@ -60,19 +62,16 @@ def GET(url):
     if url.query:
         path += '?' + url.query
 
-    HOST = url.netloc  # The remote host
-    PORT = 80          # The same port as used by the server
-    # create an INET, STREAMing socket
+    HOST = url.netloc
+    PORT = 80          
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-
     s.settimeout(0.30)
-    #s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     s.connect((HOST, PORT))
 
     cookieString = "Cookie:" + generateCookieString()
 
     message = "GET %s HTTP/1.1\nHost: %s\n%s%s" % (path, HOST, cookieString, CRLF)
-    pprint.pprint(message)
+    #print message
     s.send(message)
 
     data = (s.recv(1000000)).rstrip()
@@ -85,6 +84,7 @@ def GET(url):
     
     return parsedData
 
+#Http post method
 def POST(url, postData, cookieString):
     url = urlparse.urlparse(url)
     path = url.path
@@ -111,7 +111,7 @@ def POST(url, postData, cookieString):
     finalMessage = topOfMessage + "\r\n" + contentLength + "\r\n" + contentType + "\r\n" + cookie + CRLF + postData + CRLF
 
 
-    pprint.pprint(finalMessage)
+    #pprint.pprint(finalMessage)
     s.send(finalMessage)
 
     data = (s.recv(1000000))
@@ -122,7 +122,7 @@ def POST(url, postData, cookieString):
 
     return parseHttpResponse(data)
 
-
+#Parses http response
 def parseHttpResponse(data):
     responseTable = {}
     data = data.split(CRLF) 
@@ -143,6 +143,7 @@ def parseHttpResponse(data):
 
     return handleCookies(responseTable)
 
+#Puts cookies in desired form
 def handleCookies(table):
     if 'Set-Cookie' not in table.keys():
         return table
@@ -161,6 +162,7 @@ def handleCookies(table):
 
     return table
 
+#Generates string to be sent in cookie field
 def generateCookieString():
     string = ""
     if csrf_token:
@@ -172,7 +174,7 @@ def generateCookieString():
         "sessionid=%s" % (session_id)
     return string
 
-
+#Handles login
 def login():
     global csrf_token
     global session_id
@@ -198,6 +200,7 @@ def login():
 
     return homePage
 
+#Crawls next page in our list
 def crawlNextPage():
     global pages_to_visit
     global visited_pages
@@ -208,20 +211,20 @@ def crawlNextPage():
         htmlOfNextPage = GET(FAKEBOOK_HOST + nextPage)
 
         if htmlOfNextPage['Status'] == str(200):
-            print "Success"
+            #print "Success"
             parser.feed(htmlOfNextPage['Body'])
             visited_pages[nextPage] = True
         else:
-            print "Status Code: " + str(htmlOfNextPage['Status'])
+            #print "Status Code: " + str(htmlOfNextPage['Status'])
             if htmlOfNextPage['Status'] == str(500):
                 pages_to_visit.append(nextPage)
             elif htmlOfNextPage['Status'] == str(301):
                 pages_to_visit.append(htmlOfNextPage['Location'].replace(FAKEBOOK_HOST, ""))
 
     except socket.timeout:
-        print flags
+        pages_to_visit.append(nextPage)
 
-
+#Crawls all pages in out list
 def crawl():
     global visited_pages
 
@@ -230,10 +233,9 @@ def crawl():
     parsed = parser.feed(homePage['Body'])
 
     while len(visited_pages) > 0 and len(flags) < 5:
-        print len(pages_to_visit)
-        print flags
+        #print "Remaining pages to crawl: " + str(len(pages_to_visit))
+        #print flags
         crawlNextPage()
 
-    print flags
 
 crawl()
